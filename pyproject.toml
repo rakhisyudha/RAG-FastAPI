@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag-fastapi"
+version = "0.1.0"
+description = "A Retrieval-Augmented Generation (RAG) API built with FastAPI and ChromaDB"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi[standard]>=0.115",
+    "uvicorn[standard]>=0.30",
+    "chromadb>=0.5",
+    "sentence-transformers>=3.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 95
+
+[tool.ruff.lint]
+# B008 flags FastAPI's idiomatic dependency injection, e.g. `File(...)` in
+# argument defaults. That usage is intentional, so the rule is disabled.
+extend-ignore = ["B008"]

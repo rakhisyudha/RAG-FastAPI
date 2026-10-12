@@ -1,0 +1,100 @@
+Retrieval-Augmented Generation - Study Notes
+============================================
+
+Retrieval-Augmented Generation, usually shortened to RAG, is a technique for
+making a large language model answer questions using a private collection of
+documents instead of only what it memorised during training.
+
+A language model on its own has two problems. First, its knowledge is frozen at
+the moment training finished, so it cannot know about recent events. Second, it
+knows nothing about documents that were never published on the internet, such
+as internal wikis, contracts or support tickets. RAG solves both by fetching
+the relevant text first and handing it to the model as context.
+
+
+The five stages of a RAG pipeline
+---------------------------------
+
+1. Ingestion. Documents are read, cleaned and split into chunks.
+
+2. Embedding. Each chunk is converted into a vector of floating point numbers
+   by an embedding model. Similar meaning produces similar vectors.
+
+3. Storage. The vectors are written into a vector database such as ChromaDB,
+   together with the original chunk text and metadata.
+
+4. Retrieval. The user question is embedded with the same model, and the
+   database returns the chunks whose vectors are closest to the question
+   vector. Closeness is normally measured with cosine similarity.
+
+5. Generation. The retrieved chunks are inserted into a prompt, and the
+   language model is instructed to answer using only that context. The answer
+   is returned to the user together with the sources it came from.
+
+
+Why chunking matters
+--------------------
+
+Chunks are usually between 200 and 1000 characters. If a chunk is too small it
+loses the surrounding context and the model cannot tell what it refers to. If a
+chunk is too large the embedding averages several different topics together and
+retrieval becomes imprecise.
+
+Overlapping chunks help at the seam. If a sentence that answers a question is
+cut in half between two chunks, both halves are embedded without their other
+half, and neither retrieves well. Repeating the last 10 to 20 percent of a
+chunk at the start of the next one means the sentence always appears complete
+in at least one chunk.
+
+Metadata such as the document name, the page number, the author and the date
+should always be stored alongside a chunk. Metadata is what lets you filter
+retrieval to one document, show citations to the user, and delete or update a
+single document without rebuilding the whole index.
+
+
+How relevance is scored
+-----------------------
+
+ChromaDB stores vectors and computes a distance between them. With cosine
+distance, identical directions score 0, orthogonal vectors score 1 and opposite
+vectors score 2. Similarity is simply 1 minus distance, so a score of 0.82
+means the chunk is quite close to the question.
+
+Empirically, cosine similarity scores above 0.7 for a general purpose
+sentence embedding model usually indicate the chunk is genuinely on topic.
+Scores below 0.4 usually mean the chunk should not have been retrieved at all,
+and a threshold is worth adding to filter them out before spending tokens on
+generation.
+
+
+Choosing top-k
+--------------
+
+top-k is the number of chunks sent to the model. Too few and the answer is
+grounded in incomplete information. Too many and the model is distracted by
+irrelevant text, the prompt grows more expensive and the answer gets vaguer.
+Three to six chunks is the usual sweet spot for a first version of a system.
+
+
+Retrieval quality is the real bottleneck
+----------------------------------------
+
+In practice most bad answers are caused by retrieval, not by the language
+model. The most common causes are chunks that were split badly, questions that
+use different vocabulary from the documents, and an embedding model that is too
+weak for the domain. Before replacing the language model, print the retrieved
+chunks and read them. If the answer is not in the retrieved text, no prompt
+engineering can fix it.
+
+
+Useful next steps
+-----------------
+
+Hybrid search combines vector similarity with keyword search such as BM25 and
+usually improves recall on rare terms and product names. Reranking passes the
+top 50 retrieved chunks through a cross-encoder that scores each pair of
+question and chunk together, which is slower but far more accurate than a
+bi-encoder. Evaluation means building a small set of question and expected
+answer pairs, running the pipeline over them, and measuring whether the correct
+chunk was retrieved, so that changes to chunking or to the model can be judged
+with numbers instead of vibes.

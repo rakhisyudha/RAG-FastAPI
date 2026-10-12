@@ -1,0 +1,130 @@
+Nimbus Cloud Platform - Operating Guide
+=======================================
+
+Nimbus is a container platform that runs your services across four regions:
+us-east, us-west, eu-central and ap-south. A region is a geographic area that
+contains several availability zones. Each zone has independent power and
+networking so that the failure of one zone does not take a service offline.
+Nimbus automatically spreads the replicas of a service across different zones.
+
+
+1. Plans and Limits
+-------------------
+
+Nimbus offers three plans. The Starter plan costs 5 USD per month and includes
+2 vCPU, 4 GB of memory and 20 GB of storage. The Team plan costs 45 USD per
+month and includes 8 vCPU, 32 GB of memory and 200 GB of storage. The Enterprise
+plan is billed annually and includes custom limits, a 99.99% uptime SLA and
+phone support.
+
+Every plan includes unmetered incoming bandwidth. Outgoing bandwidth is billed
+at 0.012 USD per gigabyte in every region except ap-south, where it is billed
+at 0.018 USD per gigabyte because of local interconnection costs.
+
+The Team and Enterprise plans support private networking through a Virtual
+Private Cloud. Starter accounts cannot create a VPC and always run in the
+shared default network.
+
+
+2. Deploying a Service
+----------------------
+
+A service is deployed from a container image stored in the Nimbus registry. The
+simplest way to deploy is the command line tool:
+
+    nimbus deploy my-app --image registry.nimbus.dev/my-app:1.4.2 --region us-east
+
+The command builds a new revision and waits until every replica reports healthy.
+A deployment is considered successful when at least 80% of the replicas pass
+their health checks. If that does not happen within 10 minutes, Nimbus rolls the
+service back to the previous working revision automatically.
+
+Services can also be described in a declarative file called nimbus.yaml. A
+minimal file looks like this:
+
+    name: my-app
+    image: registry.nimbus.dev/my-app:1.4.2
+    replicas: 3
+    port: 8080
+    env:
+      LOG_LEVEL: info
+
+Because the file is declarative, storing it in a Git repository gives you a
+full deployment history and makes rollbacks a code review rather than a guess.
+
+
+3. Scaling
+----------
+
+Nimbus scales a service by changing the number of replicas. Horizontal scaling
+is the only supported mode; vertical scaling requires a restart of the service
+and is not recommended for production workloads.
+
+Manual scaling is done with:
+
+    nimbus scale my-app --replicas 6
+
+Autoscaling is enabled per service with a target CPU utilisation and a range of
+replicas. For example:
+
+    nimbus autoscale my-app --min 2 --max 20 --target-cpu 60
+
+The controller adds a replica when the average CPU utilisation across all
+replicas stays above the target for 60 seconds, and removes one when it stays
+below the target for 300 seconds. Requests per second can be used instead of
+CPU by passing --target-rps.
+
+
+4. Environment Variables and Secrets
+------------------------------------
+
+Configuration is supplied to containers as environment variables. Plain values
+are set in nimbus.yaml or with:
+
+    nimbus config set my-app LOG_LEVEL=debug
+
+Sensitive values must be stored as secrets. A secret is encrypted at rest with
+AES-256 and is never returned by the API. Create one with:
+
+    nimbus secrets create DB_PASSWORD 's3cr3t-value'
+    nimbus deploy-env my-app DB_PASSWORD=@secret:DB_PASSWORD
+
+Secret values are injected into the container at start time as files mounted
+under /var/run/nimbus/secrets, and as environment variables when the deployment
+is configured with --mount-secrets-as-env.
+
+
+5. Logs, Metrics and Alerts
+---------------------------
+
+Logs from every replica are shipped to the Nimbus console and can be streamed
+with:
+
+    nimbus logs my-app --follow --tail 100
+
+Logs are retained for 30 days on Starter and Team, and for 400 days on
+Enterprise. Metrics such as CPU, memory, request rate, error rate and p99
+latency are kept for 90 days on all plans.
+
+An alert is defined by a metric, a comparison, a threshold and a duration.
+Alerts are delivered by email, webhook or Slack. Every alert may also trigger
+an autoscaling action, which is how self-healing services are usually built on
+Nimbus.
+
+
+6. Backups and Recovery
+-----------------------
+
+Managed Postgres databases on Nimbus are backed up automatically. Backups are
+taken every 6 hours and kept for 14 days. Point-in-time recovery is available
+on Enterprise plans only and allows restoring to any second within the last
+7 days.
+
+A database restore always creates a new database with a new hostname. The
+original database is never modified, so a failed restore can never destroy the
+data it came from. To restore:
+
+    nimbus db restore prod-db --to-time '2026-03-14T09:00:00Z' --name prod-db-restored
+
+The Nimbus support SLA is 24 hours for first response on Starter, 4 hours on
+Team and 15 minutes on Enterprise for severity one incidents.

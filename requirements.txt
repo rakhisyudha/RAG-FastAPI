@@ -1,0 +1,15 @@
+# Runtime dependencies.
+# Install with:  pip install -r requirements.txt
+# Pinned to the versions this project was built and tested against.
+
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+chromadb==1.5.9
+sentence-transformers==6.1.0
+pydantic==2.14.1
+pydantic-settings==2.15.0
+httpx==0.28.1
+python-dotenv==1.2.4
+
+# Test dependencies.
+pytest==9.1.1
